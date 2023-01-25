@@ -1,0 +1,60 @@
+import bpy
+import os
+import boto3
+import requests
+
+# specify the S3 bucket name
+bucket_name = "my-bucket"
+
+# specify the file name for the export
+file_name = "my_export.fbx"
+
+# create a temporary file path for the export
+temp_file_path = "/tmp/" + file_name
+
+# export the file to the temporary file path
+bpy.ops.export_scene.fbx(filepath=temp_file_path)
+
+# create an S3 client
+s3 = boto3.client("s3")
+
+# upload the file to the S3 bucket
+s3.upload_file(temp_file_path, bucket_name, file_name)
+
+# create a public URL for the file in the S3 bucket
+url = f"https://{bucket_name}.s3.amazonaws.com/{file_name}"
+
+# Shopify API credentials
+SHOP_NAME = "your_shop_name"
+API_KEY = "your_api_key"
+PASSWORD = "your_password"
+
+# headers for the API call
+headers = {'Content-Type': 'application/json', 'X-Shopify-Access-Token': API_KEY}
+
+# create a product in Shopify
+product_data = {
+    "product": {
+        "title": "My 3D Model",
+        "body_html": f'<a href="{url}">Download 3D Model</a>',
+        "images": [
+            {
+                "src": url
+            }
+        ],
+        "variants": [
+            {
+                "price": "0.00"
+            }
+        ]
+    }
+}
+
+response = requests.post(f'https://{SHOP_NAME}.myshopify.com/admin/products.json', json=product_data, headers=headers)
+
+# check the response status code
+if response.status_code != 201:
+    raise Exception("Product creation failed with status code: " + str(response.status_code))
+
+# delete the temporary file
+os.remove(temp_file_path)
